@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html>
+<head>
+<style>
+
+html,body,#map{width;100%;height:100%;padding:0;margin:0;}
+
+  header {
+    display: flex;
+    align-items: center;
+    background-color: blue;
+    color: white;
+	justify-content: center;
+  }
+  
+  h1 {
+    font-weight: bold;
+    font-style: italic;
+  }
+
+  
+  @keyframes example {
+    0%   {background-color: #CC99FF;}
+    25%  {background-color: #993399;}
+    50%  {background-color: #999999;}
+    75%  {background-color: #99CC99;}
+    100% {background-color: #99FF99;}
+  }
+  
+  
+</style>
+
+<title>Mapa uranu w Polsce</title>
+<link rel="icon" type="image/ico" href="leaflet/logo.ico"/>
+<meta  charset="UTF-8">
+
+</head>
+
+<body>
+	<header style="animation: example 5s infinite;">
+	<img src="uran.jpg"  height="80px">
+		<h1>Mapa uranu w Polsce</h1>
+	<img src="uran.jpg"  height="80px">
+	</header>
+<div id= "map">
+
+<link rel="stylesheet" href="leaflet/leaflet.css">
+
+
+<link rel="stylesheet" href="Leaflet.Control.Opacity-master/src/L.Control.Opacity.css">
+<link rel="stylesheet" href="node_modules/leaflet.fullscreen/Control.FullScreen.css">
+
+<script src="leaflet/leaflet.js"></script>
+<script src="Leaflet.Control.Opacity-master/src/L.Control.Opacity.js"></script>
+<script src="node_modules/leaflet.fullscreen/Control.FullScreen.js"></script>
+<script src="https://unpkg.com/proj4leaflet@1.0.2/lib/proj4-compressed.js"></script>
+<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.1.1/jquery.min.js"></script>
+<script src="https://d3js.org/d3.v6.min.js"></script>
+<script src="src/leaflet.wms.js"></script>
+
+<script>
+
+var osm=L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png?{foo}', {foo: 'bar', attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'});
+var mymap = L.map('map').setView([51, 19], 6); // Ustaw widok mapy na Polskę
+      var wmsLayer = L.tileLayer.wms('http://localhost:8080/geoserver/paulina_czerska/wms', {
+        layers: 'paulina_czerska:uranisko',
+        format: 'image/png',
+        transparent: true
+      }).addTo(mymap);
+wmsLayer.setZIndex(1);
+osm.setZIndex(0);
+L.control.scale().addTo(mymap);
+
+var wmsOptions = {
+    maxZoom: 20,
+    format: 'image/png',
+    transparent: true,
+    opacity: 0.4,
+    version: '1.3.0',
+    attribution:  'Map data © GeoServer',
+    info_format: 'text/html'
+};
+var wmsSource = L.WMS.source("http://localhost:8080/geoserver/paulina_czerska/wms", wmsOptions);
+var wmsLayer = wmsSource.getLayer('uranisko');
+wmsLayer.addTo(mymap);
+
+lugend_url = 'http://localhost:8080/geoserver/paulina_czerska/wms?service=WMS&version=1.1.0&request=GetLegendGraphic&layer=paulina_czerska:uranisko&format=image/png';
+var customControl = L.Control.extend({options: { position: 'bottomleft'},
+		onAdd: function (map) {
+			var container = L.DomUtil.create('div', 'leaflet-bar leaflet-control leaflet-control-custom');
+			container.style.backgroundColor = 'white';
+			container.title = "Legenda";
+			container.style.width = '100px';
+			container.style.height = '130px';
+            container.style.opacity = '0.9';
+			container.style.backgroundImage = "url("+lugend_url+")";
+			container.style.backgroundPosition = '-2% 50%';
+			container.style.backgroundRepeat = 'no-repeat';
+			
+			var header = document.createElement('h2');
+			header.style.marginTop = '0px';
+			header.style.marginLeft = '5px';
+			header.style.fontSize = '15px';
+			header.style.textAlign = 'center';
+			header.style.fontFamily = 'Gabriola';
+			header.textContent = 'LEGENDA';
+			container.appendChild(header);
+		return container;
+		}
+	});
+	
+mymap.addControl(new customControl());
+osm.addTo(mymap);
+
+var baseLayers = {
+    "Mapa Uranu": wmsLayer,
+	"Open Street Map": osm,
+	
+};
+
+proj4.defs('EPSG:2180', '+proj=tmerc +lat_0=0 +lon_0=19 +k=0.9993 +x_0=500000 +y_0=-5300000 +ellps=GRS80 +units=m +no_defs');
+proj4.defs('EPSG:4326', '+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs ');
+    
+crs4326 = new proj4.Proj('EPSG:4326');
+crs2180 = new proj4.Proj('EPSG:2180');
+
+function PToL(feature,latlng) {
+	style = {radius:4, opacity: 1, color: 'white', weight: 1.2, fill: true, fillOpacity: 1, fillColor:'#FF3366'}
+	return L.circleMarker(latlng,style);
+}
+
+function oEF (feature,layer) {
+	var props = feature.properties;
+	layer.bindTooltip('<div style="font-size: 9px;"><b>'+props.full_id+'</b><br><i>'+props.name+'<br>',
+	{permanent: true}
+	);
+}   
+
+    //Coordinates to LatLng
+function CtLL (coordinates) {
+    new_coords = proj4(crs2180,crs4326,coordinates);
+    console.log(new_coords);
+    return [new_coords[1],new_coords[0]];
+} 
+    
+    //Budowa żądania GetFeature
+
+    
+wfs_url = "http://localhost:8080/geoserver/paulina_czerska/ows?service=WFS&version=1.0.0&request=GetFeature&typeName=paulina_czerska%3Aprzelecze&maxFeatures=50&outputFormat=application%2Fjson"
+$.getJSON(wfs_url,  function(data) {
+    console.log(data);
+    points_layer =L.geoJson(data, {
+        onEachFeature: oEF,
+        pointToLayer: PToL,
+        coordsToLatLng: CtLL
+    }).addTo(mymap);
+    overlays["WFS"]= points_layer; 
+    LayersControl.remove();
+    LayersControl = L.control.layers(baseLayers).addTo(mymap);
+});
+
+
+L.control
+    .opacity(baseLayers, {
+        label: 'Layers Opacity',
+    })
+    .addTo(mymap);
+
+
+
+
+L.control.fullscreen({
+  position: 'topleft',
+  title: {
+      'false': 'View Fullscreen', 
+      'true': 'Exit Fullscreen' 
+    },
+    
+  })
+  .addTo(mymap); 
+  
+
+
+mymap.attributionControl.setPrefix(
+	'<a href="http://leafletjs.com">Leaflet</a> | Paulina Czerska 319263',
+	);
+</script>
+</body>
+</html>
